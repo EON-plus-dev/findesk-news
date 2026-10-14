@@ -21,7 +21,7 @@ PROD = Path(os.environ["PROD_REPO_PATH"])
 PROD_REF = os.environ.get("PROD_REF", "origin/main")
 TZ = ZoneInfo(os.environ.get("NEWS_TZ", "Europe/Kyiv"))
 MODEL = os.environ["NEWS_MODEL"]
-MODELS_URL = os.environ["MODELS_URL"]
+LLM_URL = os.environ["NEWS_LLM_URL"]
 MAX_INPUT_CHARS = int(os.environ.get("NEWS_MAX_INPUT_CHARS", "12000"))
 MONTHS = ("january", "february", "march", "april", "may", "june", "july",
           "august", "september", "october", "november", "december")
@@ -64,10 +64,14 @@ def summarize(changes, day):
     user = f"Зміни, що потрапили в основну гілку продукту до кінця {day:%d.%m.%Y}:\n{changes}"
     body = json.dumps({"model": MODEL, "temperature": 0.2, "messages": [
         {"role": "system", "content": system}, {"role": "user", "content": user}]}).encode()
-    request = urllib.request.Request(MODELS_URL, data=body, headers={
-        "Authorization": f"Bearer {os.environ['GITHUB_TOKEN']}", "Content-Type": "application/json"})
+    request = urllib.request.Request(LLM_URL, data=body, headers={
+        "Authorization": f"Bearer {os.environ['NEWS_LLM_API_KEY']}", "Content-Type": "application/json"})
     with urllib.request.urlopen(request, timeout=180) as response:
-        content = json.load(response)["choices"][0]["message"]["content"]
+        raw = response.read().decode()
+    try:
+        content = json.loads(raw)["choices"][0]["message"]["content"]
+    except (ValueError, KeyError, IndexError):
+        sys.exit(f"Неочікувана відповідь моделі (HTTP {response.status}): {raw[:500]}")
     bullets = [line.rstrip() for line in content.splitlines() if line.startswith("- ")]
     if not bullets:
         sys.exit(f"Модель не повернула список змін:\n{content}")

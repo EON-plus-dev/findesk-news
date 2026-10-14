@@ -12,7 +12,6 @@ on:
 
 permissions:
   contents: write
-  models: read
 
 concurrency:
   group: daily-news
@@ -35,12 +34,13 @@ jobs:
 
       - name: Write news
         env:
-          GITHUB_TOKEN: ${{ github.token }}
+          NEWS_LLM_API_KEY: ${{ secrets.NEWS_LLM_API_KEY }}
           PROD_REPO_PATH: .prod
           PROD_REF: HEAD
           NEWS_DATE: ${{ inputs.date }}
-          NEWS_MODEL: openai/gpt-4.1
-          MODELS_URL: https://models.github.ai/inference/chat/completions
+          NEWS_MODEL: gpt-4.1
+          # Будь-який OpenAI-сумісний /chat/completions.
+          NEWS_LLM_URL: https://api.openai.com/v1/chat/completions
         run: python3 scripts/daily_news.py
 
       - name: Commit news
