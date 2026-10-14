@@ -1,0 +1,53 @@
+name: Daily FinDesk news
+
+on:
+  schedule:
+    # Пн–Пт після 24:00 за Києвом: 00:15 EET / 01:15 EEST.
+    - cron: "15 22 * * 0-4"
+  workflow_dispatch:
+    inputs:
+      date:
+        description: "День новин YYYY-MM-DD (типово — вчора за Києвом)"
+        required: false
+
+permissions:
+  contents: write
+  models: read
+
+concurrency:
+  group: daily-news
+
+jobs:
+  news:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/checkout@v4
+        with:
+          repository: EON-plus-dev/Findesk-prod
+          ref: main
+          ssh-key: ${{ secrets.FINDESK_PROD_DEPLOY_KEY }}
+          fetch-depth: 0
+          filter: blob:none
+          sparse-checkout: README.md
+          path: .prod
+
+      - name: Write news
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          PROD_REPO_PATH: .prod
+          PROD_REF: HEAD
+          NEWS_DATE: ${{ inputs.date }}
+          NEWS_MODEL: openai/gpt-4.1
+          MODELS_URL: https://models.github.ai/inference/chat/completions
+        run: python3 scripts/daily_news.py
+
+      - name: Commit news
+        run: |
+          git add news
+          git diff --cached --quiet && exit 0
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Новини FinDesk: $(git diff --cached --name-only | xargs -n1 basename | sed 's/\.md$//' | paste -sd ' ')"
+          git push
