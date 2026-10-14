@@ -65,9 +65,14 @@ def summarize(changes, day):
     body = json.dumps({"model": MODEL, "temperature": 0.2, "messages": [
         {"role": "system", "content": system}, {"role": "user", "content": user}]}).encode()
     request = urllib.request.Request(MODELS_URL, data=body, headers={
-        "Authorization": f"Bearer {os.environ['GITHUB_TOKEN']}", "Content-Type": "application/json"})
+        "Authorization": f"Bearer {os.environ['GITHUB_TOKEN']}", "Content-Type": "application/json",
+        "Accept": "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28"})
     with urllib.request.urlopen(request, timeout=180) as response:
-        content = json.load(response)["choices"][0]["message"]["content"]
+        raw = response.read().decode()
+    try:
+        content = json.loads(raw)["choices"][0]["message"]["content"]
+    except (ValueError, KeyError, IndexError):
+        sys.exit(f"Неочікувана відповідь моделі (HTTP {response.status}): {raw[:500]}")
     bullets = [line.rstrip() for line in content.splitlines() if line.startswith("- ")]
     if not bullets:
         sys.exit(f"Модель не повернула список змін:\n{content}")
